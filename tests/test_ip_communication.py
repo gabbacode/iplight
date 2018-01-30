@@ -81,6 +81,45 @@ class TestIpCommunication(unittest.TestCase):
         finally:
             loop.close()
 
+    def test_partial_package_broken_head(self):
+
+        loop = asyncio.new_event_loop()
+        loop.debug = True
+
+        # make up dummy server
+        server = ParrotServer(loop)
+        server.REPEAT_COUNT = 1
+        server.REPEAT_PERIOD = 1
+        server.COMMANDS = [
+            b'\x20\x00\x03\x00\xFF',
+            # missed byte
+            b'\x00',
+            # correct command
+            b'\x20\x00\x03\x00\xFF\x00'
+        ]
+        server.start(self.host, self.port)
+
+        try:
+            # connecting to server
+            lamp_client = LampClient(loop, self.host, self.port, 5)
+            lamp_client_task = lamp_client.start()
+            representation = LampTextView()
+            LampController(lamp_client.protocol, representation)
+
+            loop.run_until_complete(
+                asyncio.wait([
+                    server.server_stopped_event.wait(),
+                    lamp_client_task]))
+
+            # server must be stopped
+            assert not server.is_server_running()
+
+            commands_count = lamp_client.received_commands
+            assert 2 == commands_count
+
+        finally:
+            loop.close()
+
 
 if __name__ == '__main__':
     unittest.main()

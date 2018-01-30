@@ -42,26 +42,20 @@ class LampClient:
                     return
 
                 head_data = await asyncio.wait_for(
-                    reader.read(self.protocol.head_size),
+                    reader.readexactly(self.protocol.head_size),
                     self.READ_TIMEOUT)
-
-                if len(head_data) != self.protocol.head_size:
-                    return
 
                 command_code, payload_len = self.protocol.parse_head(head_data)
 
                 payload_data = await asyncio.wait_for(
-                    reader.read(payload_len),
+                    reader.readexactly(payload_len),
                     self.READ_TIMEOUT)
-
-                if len(payload_data) != payload_len:
-                    return
 
                 self.protocol.execute_command(command_code, payload_data)
 
                 self.received_commands += 1
 
-                logging.debug('raw data received: %s', head_data)
+                logging.debug('raw data received: %s', head_data + payload_data)
 
         finally:
             self.writer.close()
